@@ -1,0 +1,54 @@
+﻿<Window x:Class="DaemonGuard.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DaemonGuard.UI"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+    <Grid.ColumnDefinitions>
+    <ColumnDefinition Width="2*"/>
+    <ColumnDefinition Width="*"/>
+</Grid.ColumnDefinitions>
+
+<DataGrid x:Name="ProcessGrid" Grid.Column="0" Margin="10,10,10,60" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="ProcessGrid_SelectionChanged">
+    <DataGrid.RowStyle>
+    <Style TargetType="DataGridRow">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Status}" Value="Wasteful">
+                <Setter Property="Background" Value="#FFCDD2"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="Suspicious">
+                <Setter Property="Background" Value="#FFF59D"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="Healthy">
+                <Setter Property="Background" Value="#C8E6C9"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+</DataGrid.RowStyle>
+    <DataGrid.Columns>
+        <DataGridTextColumn Header="PID" Width="80" Binding="{Binding Pid}"/>
+        <DataGridTextColumn Header="Process" Width="*" Binding="{Binding Name}"/>
+        <DataGridTextColumn Header="Waste Score (0-10)" Width="140" Binding="{Binding Score}"/>
+        <DataGridTextColumn Header="Status" Width="140" Binding="{Binding Status}"/>
+    </DataGrid.Columns>
+</DataGrid>
+
+<StackPanel Grid.Column="1" Margin="10,10,10,60">
+    <TextBlock Text="Why this score?" FontWeight="Bold" FontSize="16"/>
+    <TextBlock x:Name="ExplanationText" Text="Select a process to see the explanation." TextWrapping="Wrap" Margin="0,10,0,0"/>
+
+    <TextBlock Text="Score breakdown" FontWeight="Bold" Margin="0,16,0,0"/>
+    <TextBlock x:Name="BreakdownText" TextWrapping="Wrap" Margin="0,6,0,0"/>
+</StackPanel>
+
+<StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="10">
+    <Button Content="Ignore" Width="90" Height="30" Margin="5" Click="ActionButton_Click"/>
+    <Button Content="Optimize" Width="90" Height="30" Margin="5" Click="ActionButton_Click"/>
+    <Button Content="Restart" Width="90" Height="30" Margin="5" Click="ActionButton_Click"/>
+    <Button x:Name="CloseButton" Content="Close" Width="90" Height="30" Margin="5" Click="CloseButton_Click"/>
+</StackPanel>
+</Grid>
+</Window>
