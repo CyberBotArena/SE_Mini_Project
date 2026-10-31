@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
@@ -11,163 +12,184 @@ namespace DaemonGuard.Database;
 
 /// <summary>
 /// Data access layer using Dapper + SQLite.
-/// Each operation opens its own connection (pooled, WAL-safe).
-/// Buffer uses transactions with rollback on failure.
+///
+/// Design notes:
+/// - A short-lived pooled connection is opened per operation (SqliteConnection is not thread-safe).
+///   WAL mode lets dashboard reads run while the collector writes.
+/// - Samples (and their scores) are buffered and written in ONE transaction. The buffer is only
+///   cleared after a successful commit, so a failed flush never loses data.
+/// - All timestamps are UTC.
+/// - Protection is rule-based (name + path pattern) and can never be downgraded by an upsert.
 /// </summary>
 public sealed class DatabaseRepository : IAsyncDisposable
 {
     private readonly string _connectionString;
-    private readonly List<ResourceSampleRecord> _sampleBuffer = new();
+    private readonly List<BufferedSample> _buffer = new();
     private readonly SemaphoreSlim _bufferLock = new(1, 1);
-    private readonly int _maxBatchSize;
+    private readonly int _maxBufferSize;
+    private const int DefaultMaxBufferSize = 50;
+    private const int MaxPendingSamples = 2000; // hard cap if the DB keeps failing
     private bool _disposed;
 
-    public DatabaseRepository(string dbPath, int maxBatchSize = 50)
+    static DatabaseRepository()
+    {
+        // Maps cpu_percent -> CpuPercent, process_id -> ProcessId, etc.
+        DefaultTypeMap.MatchNamesWithUnderscores = true;
+    }
+
+    public DatabaseRepository(string dbPath)
     {
         if (string.IsNullOrWhiteSpace(dbPath))
             throw new ArgumentException("Database path required", nameof(dbPath));
 
-        var dir = Path.GetDirectoryName(dbPath);
+        var dir = Path.GetDirectoryName(Path.GetFullPath(dbPath));
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        // Foreign Keys=ON is per-connection, must be in connection string
-        _connectionString = $"Filename={dbPath};Mode=ReadWriteCreate;Foreign Keys=True;";
-        _maxBatchSize = maxBatchSize;
+        _connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = dbPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            ForeignKeys = true,     // per-connection setting, so it must be in the connection string
+            DefaultTimeout = 30,
+            Pooling = true
+        }.ToString();
 
-        InitializeDatabase();
+        _maxBufferSize = InitializeDatabase();
     }
 
-    private void InitializeDatabase()
+    /// <returns>The configured batch size.</returns>
+    private int InitializeDatabase()
     {
         using var conn = new SqliteConnection(_connectionString);
         conn.Open();
 
-        // Enable WAL mode for concurrent reads/writes
-        conn.Execute("PRAGMA journal_mode=WAL;");
-        conn.Execute("PRAGMA synchronous=NORMAL;");
-        conn.Execute("PRAGMA cache_size=-64000;");
+        conn.Execute("PRAGMA journal_mode=WAL;"); // persistent in the database file
 
-        // CRITICAL: Tell Dapper to match snake_case columns to PascalCase properties
-        Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
-
-        var schemaPath = Path.Combine(AppContext.BaseDirectory, "schema.sql");
-        if (File.Exists(schemaPath))
-        {
-            var schema = File.ReadAllText(schemaPath);
-            conn.Execute(schema);
-        }
-        else
-        {
+        // Detect a database created by the old (v1) schema.
+        var hasProcesses = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM pragma_table_info('processes');") > 0;
+        var hasV2 = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM pragma_table_info('processes') WHERE name = 'process_id';") > 0;
+        if (hasProcesses && !hasV2)
             throw new InvalidOperationException(
-                "schema.sql not found in output directory. Set CopyToOutputDirectory=PreserveNewest.");
+                "Existing database uses the old schema. Delete the .db file (and -wal/-shm) so it is recreated.");
+
+        // schema.sql is the single source of truth. Set it to "Copy to Output Directory" in the .csproj.
+        var schemaPath = Path.Combine(AppContext.BaseDirectory, "schema.sql");
+        if (!File.Exists(schemaPath))
+            throw new FileNotFoundException(
+                "schema.sql not found next to the executable. Set its Build Action to Content and " +
+                "'Copy to Output Directory' to 'Copy if newer'.", schemaPath);
+
+        conn.Execute(File.ReadAllText(schemaPath));
+
+        var batch = conn.ExecuteScalar<string?>("SELECT setting_value FROM settings WHERE setting_key = 'max_batch_size';");
+        return int.TryParse(batch, out var n) && n > 0 ? n : DefaultMaxBufferSize;
+    }
+
+    private async Task<SqliteConnection> OpenAsync()
+    {
+        var conn = new SqliteConnection(_connectionString);
+        try
+        {
+            await conn.OpenAsync();
+            await conn.ExecuteAsync("PRAGMA synchronous=NORMAL;");
+            return conn;
+        }
+        catch
+        {
+            await conn.DisposeAsync();
+            throw;
         }
     }
-
-    #region Connection Helper
-
-    /// <summary>
-    /// Opens a fresh connection for each operation. Connections are pooled,
-    /// so this is cheap. Foreign Keys are enforced per-connection.
-    /// </summary>
-    private SqliteConnection CreateConnection()
-    {
-        return new SqliteConnection(_connectionString);
-    }
-
-    #endregion
 
     #region Process Operations
 
+    /// <summary>
+    /// Inserts or updates a process identified by (pid, start time) and returns its process_id.
+    /// Protection is the OR of the caller's flag, the stored flag and the rule table — it can never be downgraded.
+    /// </summary>
     public async Task<long> UpsertProcessAsync(
-        int pid, string name, string? executablePath, string? owner, bool isCritical)
+        int pid, DateTime startTimeUtc, string? name, string? executablePath, string? owner, bool isProtected)
     {
-        const string upsertSql = @"
-            INSERT INTO processes (pid, start_time, name, executable_path, owner, is_critical, created_at)
-            VALUES (@Pid, @StartTime, @Name, @ExecutablePath, @Owner, @IsCritical, @CreatedAt)
-            ON CONFLICT(pid, start_time) DO UPDATE SET
-                name = COALESCE(excluded.name, processes.name),
-                executable_path = COALESCE(excluded.executable_path, processes.executable_path),
-                owner = COALESCE(excluded.owner, processes.owner),
-                is_critical = MAX(processes.is_critical, excluded.is_critical);";
+        var safeName = string.IsNullOrWhiteSpace(name) ? "Unknown" : name;
+        var protect = isProtected || await IsProtectedByRuleAsync(safeName, executablePath);
 
-        var param = new
+        const string sql = @"
+            INSERT INTO processes (pid, start_time_utc, name, executable_path, owner, is_protected, first_seen, last_seen)
+            VALUES (@Pid, @StartTimeUtc, @Name, @ExecutablePath, @Owner, @IsProtected, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(pid, start_time_utc) DO UPDATE SET
+                last_seen       = CURRENT_TIMESTAMP,
+                name            = excluded.name,
+                executable_path = COALESCE(excluded.executable_path, processes.executable_path),
+                owner           = COALESCE(excluded.owner, processes.owner),
+                is_protected    = MAX(processes.is_protected, excluded.is_protected)
+            RETURNING process_id;";
+
+        await using var conn = await OpenAsync();
+        return await conn.ExecuteScalarAsync<long>(sql, new
         {
             Pid = pid,
-            StartTime = DateTime.UtcNow,
-            Name = name ?? "Unknown",
+            StartTimeUtc = startTimeUtc,
+            Name = safeName,
             ExecutablePath = executablePath,
             Owner = owner,
-            IsCritical = isCritical ? 1 : 0,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-
-        // First try to find existing process
-        var existingId = await conn.ExecuteScalarAsync<long?>(
-            "SELECT id FROM processes WHERE pid = @Pid ORDER BY start_time DESC LIMIT 1;",
-            new { Pid = pid });
-
-        if (existingId.HasValue)
-        {
-            await conn.ExecuteAsync(upsertSql, param);
-            return existingId.Value;
-        }
-
-        // Insert new, return the generated ID
-        const string insertSql = @"
-            INSERT INTO processes (pid, start_time, name, executable_path, owner, is_critical, created_at)
-            VALUES (@Pid, @StartTime, @Name, @ExecutablePath, @Owner, @IsCritical, @CreatedAt);
-            SELECT last_insert_rowid();";
-
-        return await conn.ExecuteScalarAsync<long>(insertSql, param);
+            IsProtected = protect ? 1 : 0
+        });
     }
 
-    public async Task<bool> IsProcessProtectedAsync(int pid, string? name, string? path)
+    /// <summary>Checks the read-only protected_processes rule table (name + optional path pattern).</summary>
+    public async Task<bool> IsProtectedByRuleAsync(string name, string? executablePath)
     {
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-
-        // Check by pattern matching against protected_processes table
         const string sql = @"
-            SELECT COUNT(*) FROM protected_processes pp
-            LEFT JOIN processes p ON p.pid = @Pid
-            WHERE (pp.name_pattern IS NULL OR p.name LIKE '%' || pp.name_pattern || '%')
-              AND (pp.path_pattern IS NULL OR p.executable_path LIKE '%' || pp.path_pattern || '%')
-              AND (pp.owner_pattern IS NULL OR p.owner LIKE '%' || pp.owner_pattern || '%');";
+            SELECT COUNT(*) FROM protected_processes
+            WHERE name = @Name COLLATE NOCASE
+              AND (path_pattern IS NULL
+                   OR (@Path IS NOT NULL AND lower(@Path) LIKE lower(path_pattern)));";
 
-        var count = await conn.ExecuteScalarAsync<int>(sql, new { Pid = pid });
+        await using var conn = await OpenAsync();
+        return await conn.ExecuteScalarAsync<int>(sql, new { Name = name, Path = executablePath }) > 0;
+    }
+
+    public async Task<IEnumerable<long>> GetProtectedProcessIdsAsync()
+    {
+        await using var conn = await OpenAsync();
+        return await conn.QueryAsync<long>("SELECT process_id FROM processes WHERE is_protected = 1;");
+    }
+
+    public async Task<bool> IsProcessProtectedAsync(long processId)
+    {
+        await using var conn = await OpenAsync();
+        var count = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM processes WHERE process_id = @ProcessId AND is_protected = 1;",
+            new { ProcessId = processId });
         return count > 0;
-    }
-
-    public async Task<IEnumerable<ProtectedProcessEntry>> GetProtectedPatternsAsync()
-    {
-        const string sql = @"
-            SELECT name_pattern, path_pattern, owner_pattern, reason
-            FROM protected_processes;";
-
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.QueryAsync<ProtectedProcessEntry>(sql);
     }
 
     #endregion
 
-    #region Resource Sample Operations (BUFFERED)
+    #region Resource Sample Operations
 
-    public async Task FlushSampleAsync(ResourceSampleRecord sample)
+    /// <summary>
+    /// Queues a sample (and optionally its waste score) for batched insertion.
+    /// sample.ProcessId must come from UpsertProcessAsync. The score's SampleId is filled in at flush time.
+    /// Throws if a triggered flush fails; the queued data is kept and retried on the next flush.
+    /// </summary>
+    public async Task QueueSampleAsync(ResourceSample sample, WasteScoreRecord? score = null)
     {
         await _bufferLock.WaitAsync();
         try
         {
-            _sampleBuffer.Add(sample);
-            
-            if (_sampleBuffer.Count >= _maxBatchSize)
+            _buffer.Add(new BufferedSample(sample, score));
+
+            if (_buffer.Count > MaxPendingSamples)
             {
-                await FlushBufferInternalAsync();
+                var drop = _buffer.Count - MaxPendingSamples;
+                _buffer.RemoveRange(0, drop);
+                System.Diagnostics.Trace.TraceError($"DaemonGuard DB: dropped {drop} oldest samples (database unavailable).");
             }
+
+            if (_buffer.Count >= _maxBufferSize)
+                await FlushBufferInternalAsync();
         }
         finally
         {
@@ -180,7 +202,6 @@ public sealed class DatabaseRepository : IAsyncDisposable
         await _bufferLock.WaitAsync();
         try
         {
-            if (_sampleBuffer.Count == 0) return;
             await FlushBufferInternalAsync();
         }
         finally
@@ -189,171 +210,159 @@ public sealed class DatabaseRepository : IAsyncDisposable
         }
     }
 
+    // Caller must hold _bufferLock.
     private async Task FlushBufferInternalAsync()
     {
-        if (_sampleBuffer.Count == 0) return;
+        if (_buffer.Count == 0) return;
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
+        const string sampleSql = @"
+            INSERT INTO resource_samples
+                (process_id, timestamp, cpu_percent, memory_mb, disk_io_read_bytes, disk_io_write_bytes,
+                 network_in_bytes, network_out_bytes, gpu_percent, idle_minutes)
+            VALUES
+                (@ProcessId, @Timestamp, @CpuPercent, @MemoryMb, @DiskIoReadBytes, @DiskIoWriteBytes,
+                 @NetworkInBytes, @NetworkOutBytes, @GpuPercent, @IdleMinutes)
+            RETURNING sample_id;";
 
-        using var tx = await conn.BeginTransactionAsync();
+        await using var conn = await OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
 
-        try
+        // Any exception rolls the transaction back (on dispose) and leaves _buffer untouched.
+        foreach (var item in _buffer)
         {
-            const string sampleInsertSql = @"
-                INSERT INTO resource_samples 
-                    (process_id, pid, timestamp, cpu_percent, memory_mb, disk_io_read_bytes, 
-                     disk_io_write_bytes, network_in_bytes, network_out_bytes, gpu_percent, idle_minutes)
-                VALUES 
-                    (@ProcessId, @Pid, @Timestamp, @CpuPercent, @MemoryMb, @DiskIoReadBytes, 
-                     @DiskIoWriteBytes, @NetworkInBytes, @NetworkOutBytes, @GpuPercent, @IdleMinutes);";
+            var sampleId = await conn.ExecuteScalarAsync<long>(sampleSql, item.Sample, tx);
+            item.Sample.SampleId = sampleId;
 
-            // Batch insert all samples
-            await conn.ExecuteAsync(sampleInsertSql, _sampleBuffer, transaction: tx);
-            
-            // SUCCESS: only now clear the buffer
-            _sampleBuffer.Clear();
-            
-            await tx.CommitAsync();
+            if (item.Score is not null)
+            {
+                item.Score.SampleId = sampleId;
+                await conn.ExecuteAsync(InsertWasteScoreSql, item.Score, tx);
+            }
         }
-        catch (Exception ex)
-        {
-            await tx.RollbackAsync();
-            // Re-throw so caller knows the buffer wasn't cleared
-            throw new DbException("Failed to flush sample batch", ex);
-        }
+
+        await tx.CommitAsync();
+        _buffer.Clear(); // only after a successful commit
     }
 
-    public async Task<ResourceSampleRecord?> GetLatestSampleByPidAsync(int pid)
-    {
-        const string sql = @"
-            SELECT * FROM resource_samples 
-            WHERE pid = @Pid 
-            ORDER BY timestamp DESC LIMIT 1;";
-
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.QueryFirstOrDefaultAsync<ResourceSampleRecord>(sql, new { Pid = pid });
-    }
-
-    public async Task<IEnumerable<ResourceSampleRecord>> GetSamplesByTimeRangeAsync(
-        int pid, DateTime startDate, DateTime endDate)
+    public async Task<ResourceSample?> GetLatestSampleByProcessIdAsync(long processId)
     {
         const string sql = @"
             SELECT * FROM resource_samples
-            WHERE pid = @Pid AND timestamp BETWEEN @Start AND @End
+            WHERE process_id = @ProcessId
+            ORDER BY timestamp DESC LIMIT 1;";
+
+        await using var conn = await OpenAsync();
+        return await conn.QueryFirstOrDefaultAsync<ResourceSample>(sql, new { ProcessId = processId });
+    }
+
+    public async Task<IEnumerable<ResourceSample>> GetSamplesByTimeRangeAsync(
+        long processId, DateTime startUtc, DateTime endUtc)
+    {
+        const string sql = @"
+            SELECT * FROM resource_samples
+            WHERE process_id = @ProcessId AND timestamp BETWEEN @Start AND @End
             ORDER BY timestamp ASC;";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.QueryAsync<ResourceSampleRecord>(sql, new { Pid = pid, Start = startDate, End = endDate });
+        await using var conn = await OpenAsync();
+        return await conn.QueryAsync<ResourceSample>(sql, new { ProcessId = processId, Start = startUtc, End = endUtc });
     }
 
     #endregion
 
     #region Waste Score Operations
 
-    public async Task<int> InsertWasteScoreAsync(WasteScoreRecord score)
-    {
-        const string sql = @"
-            INSERT INTO waste_scores 
-                (sample_id, waste_score, risk_score, classification, explanation_text, breakdown_json)
-            VALUES 
-                (@SampleId, @WasteScore, @RiskScore, @Classification, @ExplanationText, @BreakdownJson);
-            SELECT last_insert_rowid();";
+    private const string InsertWasteScoreSql = @"
+        INSERT INTO waste_scores
+            (sample_id, waste_score, risk_score, classification, explanation_text, breakdown_json)
+        VALUES
+            (@SampleId, @WasteScore, @RiskScore, @Classification, @ExplanationText, @BreakdownJson);";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.ExecuteScalarAsync<int>(sql, score);
+    /// <summary>For a sample that is already stored. Prefer QueueSampleAsync(sample, score) for new data.</summary>
+    public async Task InsertWasteScoreAsync(WasteScoreRecord score)
+    {
+        await using var conn = await OpenAsync();
+        await conn.ExecuteAsync(InsertWasteScoreSql, score);
     }
 
-    public async Task<WasteScoreRecordWithSample?> GetWasteScoreForSampleAsync(int sampleId)
-    {
-        const string sql = @"
-            SELECT ws.*, 
-                   rs.timestamp as SampleTimestamp, 
-                   rs.cpu_percent, rs.memory_mb, rs.pid,
-                   rs.disk_io_read_bytes, rs.disk_io_write_bytes
-            FROM waste_scores ws
-            INNER JOIN resource_samples rs ON ws.sample_id = rs.sample_id
-            WHERE rs.sample_id = @SampleId;";
+    private const string WasteScoreWithSampleSelect = @"
+        SELECT ws.score_id, ws.sample_id, ws.waste_score, ws.risk_score, ws.classification,
+               ws.explanation_text, ws.breakdown_json,
+               rs.timestamp AS sample_timestamp, rs.cpu_percent, rs.memory_mb,
+               p.process_id, p.pid, p.name AS process_name, p.is_protected
+        FROM waste_scores ws
+        INNER JOIN resource_samples rs ON ws.sample_id = rs.sample_id
+        INNER JOIN processes p ON rs.process_id = p.process_id";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.QueryFirstOrDefaultAsync<WasteScoreRecordWithSample>(sql, new { SampleId = sampleId });
+    public async Task<WasteScoreWithSample?> GetWasteScoreForSampleAsync(long sampleId)
+    {
+        const string sql = WasteScoreWithSampleSelect + " WHERE rs.sample_id = @SampleId;";
+
+        await using var conn = await OpenAsync();
+        return await conn.QueryFirstOrDefaultAsync<WasteScoreWithSample>(sql, new { SampleId = sampleId });
     }
 
-    public async Task<IEnumerable<WasteScoreRecordWithSample>> GetRecentWasteScoresAsync(int limit = 100)
+    public async Task<IEnumerable<WasteScoreWithSample>> GetRecentWasteScoresAsync(int limit = 100)
     {
-        const string sql = @"
-            SELECT ws.*, 
-                   rs.timestamp as SampleTimestamp, 
-                   rs.cpu_percent, rs.memory_mb, rs.pid,
-                   rs.disk_io_read_bytes, rs.disk_io_write_bytes,
-                   p.name as ProcessName
-            FROM waste_scores ws
-            INNER JOIN resource_samples rs ON ws.sample_id = rs.sample_id
-            INNER JOIN processes p ON rs.process_id = p.id
-            ORDER BY rs.timestamp DESC
-            LIMIT @Limit;";
+        const string sql = WasteScoreWithSampleSelect + " ORDER BY rs.timestamp DESC LIMIT @Limit;";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.QueryAsync<WasteScoreRecordWithSample>(sql, new { Limit = limit });
+        await using var conn = await OpenAsync();
+        return await conn.QueryAsync<WasteScoreWithSample>(sql, new { Limit = limit });
     }
 
     #endregion
 
-    #region User Action Operations (stores pid/name directly)
+    #region User Action Operations
 
-    public async Task InsertUserActionAsync(
-        int? scoreId, int pid, string processName, string actionType, 
-        string? resultStatus = null, string? notes = null)
+    public async Task<long> InsertUserActionAsync(UserActionRecord action)
     {
         const string sql = @"
-            INSERT INTO user_actions 
-                (score_id, pid, process_name, action_type, confirmed_at, result_status, notes)
-            VALUES 
-                (@ScoreId, @Pid, @ProcessName, @ActionType, @ConfirmedAt, @ResultStatus, @Notes);";
+            INSERT INTO user_actions
+                (score_id, pid, process_name, executable_path, waste_score_snapshot, risk_score_snapshot,
+                 action_type, result_status, notes, est_cpu_minutes_saved, est_memory_mb_hours_saved)
+            VALUES
+                (@ScoreId, @Pid, @ProcessName, @ExecutablePath, @WasteScoreSnapshot, @RiskScoreSnapshot,
+                 @ActionType, @ResultStatus, @Notes, @EstCpuMinutesSaved, @EstMemoryMbHoursSaved)
+            RETURNING action_id;";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        await conn.ExecuteAsync(sql, new 
-        { 
-            ScoreId = scoreId, 
-            Pid = pid, 
-            ProcessName = processName,
-            ActionType = actionType, 
-            ConfirmedAt = DateTime.UtcNow,
-            ResultStatus = resultStatus, 
-            Notes = notes 
-        });
+        await using var conn = await OpenAsync();
+        return await conn.ExecuteScalarAsync<long>(sql, action);
     }
 
     public async Task<ActionCountDto> GetActionCountsAsync()
     {
         const string sql = @"
-            SELECT action_type, COUNT(*) as count
+            SELECT action_type AS ActionType, COUNT(*) AS Count
             FROM user_actions
             GROUP BY action_type;";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        
-        var results = await conn.QueryAsync<(string action_type, int count)>(sql);
-        
+        await using var conn = await OpenAsync();
+        var rows = await conn.QueryAsync<ActionCountRow>(sql);
+
         var dto = new ActionCountDto();
-        foreach (var row in results)
+        foreach (var row in rows)
         {
-            switch (row.action_type)
+            switch (row.ActionType)
             {
-                case "Ignore": dto.Ignore = row.count; break;
-                case "Optimize": dto.Optimize = row.count; break;
-                case "Restart": dto.Restart = row.count; break;
-                case "Close": dto.Close = row.count; break;
+                case "Ignore": dto.Ignore = row.Count; break;
+                case "Optimize": dto.Optimize = row.Count; break;
+                case "Restart": dto.Restart = row.Count; break;
+                case "Close": dto.Close = row.Count; break;
             }
         }
         return dto;
+    }
+
+    /// <summary>Total estimated savings across all logged actions (GreenOps summary).</summary>
+    public async Task<SavingsSummary> GetSavingsSummaryAsync()
+    {
+        const string sql = @"
+            SELECT COALESCE(SUM(est_cpu_minutes_saved), 0)     AS CpuMinutesSaved,
+                   COALESCE(SUM(est_memory_mb_hours_saved), 0) AS MemoryMbHoursSaved
+            FROM user_actions
+            WHERE action_type IN ('Optimize', 'Restart', 'Close');";
+
+        await using var conn = await OpenAsync();
+        return await conn.QuerySingleAsync<SavingsSummary>(sql);
     }
 
     #endregion
@@ -362,10 +371,9 @@ public sealed class DatabaseRepository : IAsyncDisposable
 
     public async Task<string?> GetSettingAsync(string key)
     {
-        const string sql = "SELECT setting_value FROM settings WHERE setting_key = @Key;";
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.ExecuteScalarAsync<string?>(sql, new { Key = key });
+        await using var conn = await OpenAsync();
+        return await conn.ExecuteScalarAsync<string?>(
+            "SELECT setting_value FROM settings WHERE setting_key = @Key;", new { Key = key });
     }
 
     public async Task<int> GetSettingIntAsync(string key, int defaultValue = 0)
@@ -378,151 +386,128 @@ public sealed class DatabaseRepository : IAsyncDisposable
     {
         const string sql = @"
             INSERT INTO settings (setting_key, setting_value, updated_at)
-            VALUES (@Key, @Value, @UpdatedAt)
+            VALUES (@Key, @Value, CURRENT_TIMESTAMP)
             ON CONFLICT(setting_key) DO UPDATE SET
                 setting_value = excluded.setting_value,
                 updated_at = CURRENT_TIMESTAMP;";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        await conn.ExecuteAsync(sql, new { Key = key, Value = value, UpdatedAt = DateTime.UtcNow });
+        await using var conn = await OpenAsync();
+        await conn.ExecuteAsync(sql, new { Key = key, Value = value });
     }
 
     #endregion
 
-    #region Daily Aggregation (for long-term trends)
+    #region Trends and Evaluation
 
-    public async Task UpsertDailyAggregateAsync(DailyAggregateRecord aggregate)
+    public async Task<IEnumerable<DailyProcessSummary>> GetDailySummariesAsync(string fromDay, string toDay)
     {
         const string sql = @"
-            INSERT INTO daily_aggregates 
-                (pid, date, avg_cpu, max_memory_mb, total_disk_io_bytes, avg_idle_minutes, waste_score_avg)
-            VALUES 
-                (@Pid, @Date, @AvgCpu, @MaxMemoryMb, @TotalDiskIoBytes, @AvgIdleMinutes, @WasteScoreAvg)
-            ON CONFLICT(pid, date) DO UPDATE SET
-                avg_cpu = excluded.avg_cpu,
-                max_memory_mb = excluded.max_memory_mb,
-                total_disk_io_bytes = excluded.total_disk_io_bytes,
-                avg_idle_minutes = excluded.avg_idle_minutes,
-                waste_score_avg = excluded.waste_score_avg;";
+            SELECT day, process_name, sample_count, avg_cpu_percent, max_cpu_percent,
+                   avg_memory_mb, max_waste_score, wasteful_samples
+            FROM daily_process_summary
+            WHERE day BETWEEN @FromDay AND @ToDay
+            ORDER BY day, process_name;";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        await conn.ExecuteAsync(sql, aggregate);
+        await using var conn = await OpenAsync();
+        return await conn.QueryAsync<DailyProcessSummary>(sql, new { FromDay = fromDay, ToDay = toDay });
     }
 
-    public async Task<DailyAggregateRecord?> GetDailyAggregateAsync(int pid, DateTime date)
+    public async Task InsertEvaluationRunAsync(EvaluationRun run)
     {
         const string sql = @"
-            SELECT * FROM daily_aggregates 
-            WHERE pid = @Pid AND date = @Date;";
+            INSERT INTO evaluation_runs
+                (scenario, detector, process_name, ground_truth, predicted_label, waste_score,
+                 detection_time_ms, monitor_cpu_percent, monitor_memory_mb)
+            VALUES
+                (@Scenario, @Detector, @ProcessName, @GroundTruth, @PredictedLabel, @WasteScore,
+                 @DetectionTimeMs, @MonitorCpuPercent, @MonitorMemoryMb);";
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.QueryFirstOrDefaultAsync<DailyAggregateRecord>(sql, 
-            new { Pid = pid, Date = date.Date });
+        await using var conn = await OpenAsync();
+        await conn.ExecuteAsync(sql, run);
+    }
+
+    public async Task<IEnumerable<EvaluationRun>> GetEvaluationRunsAsync(string? scenario = null)
+    {
+        const string sql = @"
+            SELECT run_id, scenario, detector, process_name, ground_truth, predicted_label, waste_score,
+                   detection_time_ms, monitor_cpu_percent, monitor_memory_mb, recorded_at
+            FROM evaluation_runs
+            WHERE @Scenario IS NULL OR scenario = @Scenario
+            ORDER BY run_id;";
+
+        await using var conn = await OpenAsync();
+        return await conn.QueryAsync<EvaluationRun>(sql, new { Scenario = scenario });
     }
 
     #endregion
 
     #region Maintenance Operations
 
-    public async Task<int> RunRetentionCleanupAsync(bool doVacuum = false)
+    /// <summary>
+    /// Rolls old samples into daily_process_summary, then deletes expired samples, actions and processes.
+    /// Deleting samples cascades to waste_scores; user_actions are kept (score_id becomes NULL)
+    /// until their own, longer retention period expires.
+    /// Run VACUUM rarely (e.g. weekly): pass vacuum = true.
+    /// </summary>
+    public async Task<int> RunRetentionCleanupAsync(bool vacuum = false)
     {
-        int deletedSamples = 0;
-        int deletedActions = 0;
-        int deletedProcesses = 0;
+        var sampleDays = await GetSettingIntAsync("retention_days_samples", 7);
+        var actionDays = await GetSettingIntAsync("retention_days_actions", 30);
 
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
+        const string aggregateSql = @"
+            INSERT INTO daily_process_summary
+                (day, process_name, sample_count, avg_cpu_percent, max_cpu_percent,
+                 avg_memory_mb, max_waste_score, wasteful_samples)
+            SELECT date(rs.timestamp), p.name, COUNT(*), AVG(rs.cpu_percent), MAX(rs.cpu_percent),
+                   AVG(rs.memory_mb), MAX(ws.waste_score),
+                   SUM(CASE WHEN ws.classification = 'Potentially Wasteful' THEN 1 ELSE 0 END)
+            FROM resource_samples rs
+            INNER JOIN processes p ON p.process_id = rs.process_id
+            LEFT JOIN waste_scores ws ON ws.sample_id = rs.sample_id
+            WHERE rs.timestamp < datetime('now', '-' || @Days || ' days')
+            GROUP BY date(rs.timestamp), p.name
+            ON CONFLICT(day, process_name) DO UPDATE SET
+                -- a day can be rolled up in two passes, so merge as weighted averages
+                avg_cpu_percent  = (COALESCE(daily_process_summary.avg_cpu_percent, 0) * daily_process_summary.sample_count
+                                    + COALESCE(excluded.avg_cpu_percent, 0) * excluded.sample_count)
+                                   / (daily_process_summary.sample_count + excluded.sample_count),
+                avg_memory_mb    = (COALESCE(daily_process_summary.avg_memory_mb, 0) * daily_process_summary.sample_count
+                                    + COALESCE(excluded.avg_memory_mb, 0) * excluded.sample_count)
+                                   / (daily_process_summary.sample_count + excluded.sample_count),
+                max_cpu_percent  = MAX(COALESCE(daily_process_summary.max_cpu_percent, 0), COALESCE(excluded.max_cpu_percent, 0)),
+                max_waste_score  = MAX(COALESCE(daily_process_summary.max_waste_score, 0), COALESCE(excluded.max_waste_score, 0)),
+                wasteful_samples = daily_process_summary.wasteful_samples + excluded.wasteful_samples,
+                sample_count     = daily_process_summary.sample_count + excluded.sample_count;";
 
-        using var tx = await conn.BeginTransactionAsync();
-
-        try
+        int total;
+        await using (var conn = await OpenAsync())
+        await using (var tx = await conn.BeginTransactionAsync())
         {
-            var retentionDays = await GetSettingIntAsync("retention_days_samples", 7);
-            var actionRetention = await GetSettingIntAsync("retention_days_actions", 30);
+            await conn.ExecuteAsync(aggregateSql, new { Days = sampleDays }, tx);
 
-            // Delete old samples (with CASCADE, waste_scores will follow)
-            deletedSamples = await conn.ExecuteAsync(@"
-                DELETE FROM resource_samples 
-                WHERE timestamp < datetime('now', '-' || @Days || ' days');",
-                new { Days = retentionDays }, transaction: tx);
+            var deletedSamples = await conn.ExecuteAsync(
+                "DELETE FROM resource_samples WHERE timestamp < datetime('now', '-' || @Days || ' days');",
+                new { Days = sampleDays }, tx);
 
-            // Delete old user actions (NOT cascade-deleted, they're standalone)
-            deletedActions = await conn.ExecuteAsync(@"
-                DELETE FROM user_actions 
-                WHERE confirmed_at < datetime('now', '-' || @Days || ' days');",
-                new { Days = actionRetention }, transaction: tx);
+            var deletedActions = await conn.ExecuteAsync(
+                "DELETE FROM user_actions WHERE confirmed_at < datetime('now', '-' || @Days || ' days');",
+                new { Days = actionDays }, tx);
 
-            // Clean orphaned processes (no samples in 7 days, not critical)
-            deletedProcesses = await conn.ExecuteAsync(@"
-                DELETE FROM processes 
-                WHERE id NOT IN (
-                    SELECT DISTINCT process_id FROM resource_samples 
-                    WHERE timestamp > datetime('now', '-7 days')
-                )
-                AND is_critical = 0;", transaction: tx);
+            var deletedProcesses = await conn.ExecuteAsync(
+                "DELETE FROM processes WHERE last_seen < datetime('now', '-' || @Days || ' days');",
+                new { Days = sampleDays }, tx);
 
             await tx.CommitAsync();
-
-            // VACUUM is expensive - only run if requested (e.g., weekly)
-            if (doVacuum)
-            {
-                await conn.ExecuteAsync("VACUUM;");
-            }
-
-            return deletedSamples + deletedActions + deletedProcesses;
+            total = deletedSamples + deletedActions + deletedProcesses;
         }
-        catch
+
+        if (vacuum)
         {
-            await tx.RollbackAsync();
-            throw;
+            await using var conn = await OpenAsync();
+            await conn.ExecuteAsync("VACUUM;");
         }
-    }
 
-    #endregion
-
-    #region Evaluation Support
-
-    public async Task<long> CreateEvaluationRunAsync(string name, string scenarioType, string? notes = null)
-    {
-        const string sql = @"
-            INSERT INTO evaluation_runs (run_name, started_at, scenario_type, notes)
-            VALUES (@Name, @StartedAt, @ScenarioType, @Notes);
-            SELECT last_insert_rowid();";
-
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        return await conn.ExecuteScalarAsync<long>(sql, new
-        {
-            Name = name,
-            StartedAt = DateTime.UtcNow,
-            ScenarioType = scenarioType,
-            Notes = notes
-        });
-    }
-
-    public async Task InsertEvaluationLabelAsync(
-        long runId, int pid, string actualClassification, 
-        string? detectedClassification = null, DateTime? detectedAt = null)
-    {
-        const string sql = @"
-            INSERT INTO evaluation_labels 
-                (run_id, pid, actual_classification, detected_classification, detected_at)
-            VALUES 
-                (@RunId, @Pid, @Actual, @Detected, @DetectedAt);";
-
-        using var conn = CreateConnection();
-        await conn.OpenAsync();
-        await conn.ExecuteAsync(sql, new
-        {
-            RunId = runId,
-            Pid = pid,
-            Actual = actualClassification,
-            Detected = detectedClassification,
-            DetectedAt = detectedAt ?? (object)DBNull.Value
-        });
+        return total;
     }
 
     #endregion
@@ -532,33 +517,36 @@ public sealed class DatabaseRepository : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
-        
-        await ForceFlushAsync();
-        _bufferLock.Dispose();
         _disposed = true;
-    }
 
-    public void Dispose()
-    {
-        if (_disposed) return;
-        ForceFlushAsync().GetAwaiter().GetResult();
+        try
+        {
+            await ForceFlushAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceError($"DaemonGuard DB: final flush failed: {ex.Message}");
+        }
+
         _bufferLock.Dispose();
-        _disposed = true;
+        SqliteConnection.ClearAllPools(); // releases the file so the DB can be moved/deleted
     }
 
     #endregion
+
+    private sealed record BufferedSample(ResourceSample Sample, WasteScoreRecord? Score);
+    private sealed class ActionCountRow { public string ActionType { get; set; } = ""; public int Count { get; set; } }
 }
 
 // ============================================================
 // DATA TRANSFER OBJECTS (POCOs)
 // ============================================================
 
-public class ResourceSampleRecord
+public class ResourceSample
 {
-    public int SampleId { get; set; }
-    public int ProcessId { get; set; }
-    public int Pid { get; set; }
-    public DateTime Timestamp { get; set; }
+    public long SampleId { get; set; }
+    public long ProcessId { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow; // always UTC
     public double? CpuPercent { get; set; }
     public double? MemoryMb { get; set; }
     public long? DiskIoReadBytes { get; set; }
@@ -569,21 +557,22 @@ public class ResourceSampleRecord
     public double? IdleMinutes { get; set; }
 }
 
+/// <summary>Renamed from WasteScore: a class cannot contain a member with the same name as itself (CS0542).</summary>
 public class WasteScoreRecord
 {
-    public int ScoreId { get; set; }
-    public int SampleId { get; set; }
-    public double WasteScore { get; set; }  // Renamed from WasteScore property
+    public long ScoreId { get; set; }
+    public long SampleId { get; set; }
+    public double WasteScore { get; set; }
     public double RiskScore { get; set; }
-    public string Classification { get; set; } = string.Empty;
+    public string Classification { get; set; } = string.Empty; // Healthy | Suspicious | Potentially Wasteful
     public string? ExplanationText { get; set; }
     public string? BreakdownJson { get; set; }
 }
 
-public class WasteScoreRecordWithSample
+public class WasteScoreWithSample
 {
-    public int ScoreId { get; set; }
-    public int SampleId { get; set; }
+    public long ScoreId { get; set; }
+    public long SampleId { get; set; }
     public double WasteScore { get; set; }
     public double RiskScore { get; set; }
     public string Classification { get; set; } = string.Empty;
@@ -592,30 +581,25 @@ public class WasteScoreRecordWithSample
     public DateTime SampleTimestamp { get; set; }
     public double? CpuPercent { get; set; }
     public double? MemoryMb { get; set; }
+    public long ProcessId { get; set; }
     public int Pid { get; set; }
-    public long? DiskIoReadBytes { get; set; }
-    public long? DiskIoWriteBytes { get; set; }
-    public string? ProcessName { get; set; }
+    public string ProcessName { get; set; } = string.Empty;
+    public bool IsProtected { get; set; }
 }
 
-public class DailyAggregateRecord
+public class UserActionRecord
 {
-    public int Id { get; set; }
-    public int Pid { get; set; }
-    public DateTime Date { get; set; }
-    public double? AvgCpu { get; set; }
-    public double? MaxMemoryMb { get; set; }
-    public long? TotalDiskIoBytes { get; set; }
-    public double? AvgIdleMinutes { get; set; }
-    public double? WasteScoreAvg { get; set; }
-}
-
-public class ProtectedProcessEntry
-{
-    public string NamePattern { get; set; } = string.Empty;
-    public string? PathPattern { get; set; }
-    public string? OwnerPattern { get; set; }
-    public string Reason { get; set; } = string.Empty;
+    public long? ScoreId { get; set; }
+    public int? Pid { get; set; }
+    public string ProcessName { get; set; } = string.Empty;
+    public string? ExecutablePath { get; set; }
+    public double? WasteScoreSnapshot { get; set; }
+    public double? RiskScoreSnapshot { get; set; }
+    public string ActionType { get; set; } = string.Empty; // Ignore | Optimize | Restart | Close
+    public string? ResultStatus { get; set; }
+    public string? Notes { get; set; }
+    public double? EstCpuMinutesSaved { get; set; }
+    public double? EstMemoryMbHoursSaved { get; set; }
 }
 
 public class ActionCountDto
@@ -624,12 +608,39 @@ public class ActionCountDto
     public int Optimize { get; set; }
     public int Restart { get; set; }
     public int Close { get; set; }
-    
+
     public int Total => Ignore + Optimize + Restart + Close;
 }
 
-public class DbException : Exception
+public class SavingsSummary
 {
-    public DbException(string message) : base(message) { }
-    public DbException(string message, Exception inner) : base(message, inner) { }
+    public double CpuMinutesSaved { get; set; }
+    public double MemoryMbHoursSaved { get; set; }
+}
+
+public class DailyProcessSummary
+{
+    public string Day { get; set; } = string.Empty;
+    public string ProcessName { get; set; } = string.Empty;
+    public int SampleCount { get; set; }
+    public double? AvgCpuPercent { get; set; }
+    public double? MaxCpuPercent { get; set; }
+    public double? AvgMemoryMb { get; set; }
+    public double? MaxWasteScore { get; set; }
+    public int WastefulSamples { get; set; }
+}
+
+public class EvaluationRun
+{
+    public long RunId { get; set; }
+    public string Scenario { get; set; } = string.Empty;
+    public string Detector { get; set; } = "DaemonGuard"; // DaemonGuard | StaticThreshold
+    public string ProcessName { get; set; } = string.Empty;
+    public string GroundTruth { get; set; } = string.Empty; // Wasteful | Legitimate | Protected
+    public string PredictedLabel { get; set; } = string.Empty;
+    public double? WasteScore { get; set; }
+    public double? DetectionTimeMs { get; set; }
+    public double? MonitorCpuPercent { get; set; }
+    public double? MonitorMemoryMb { get; set; }
+    public DateTime RecordedAt { get; set; }
 }
