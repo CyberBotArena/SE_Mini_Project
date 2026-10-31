@@ -3,12 +3,21 @@ using System.Threading.Channels;
 
 namespace DaemonGuard.Engine.Communication;
 
+/// <summary>
+/// Expanded telemetry packet capturing resource utilization, disk I/O velocity, 
+/// and UI/window state to accurately separate active workloads from background idle waste.
+/// </summary>
 public sealed record ProcessTelemetry(
     int ProcessId,
     string ProcessName,
     string ExecutablePath,
     float CpuUsage,
     long WorkingSetMemoryBytes,
+    // --- NEW BEHAVIORAL METRICS ---
+    long DiskReadBytesPerSec,
+    long DiskWriteBytesPerSec,
+    bool HasVisibleWindow,
+    // ------------------------------
     DateTime Timestamp
 );
 
