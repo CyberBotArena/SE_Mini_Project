@@ -65,15 +65,14 @@ public static class ProcessWasteScorer
             }
         }
 
-        // Clamp score between 0.0 and 100.0
-        score = Math.Clamp(score, 0.0, 100.0);
+        // Clamp score between 0.0 and 100.0, then scale to 0.0 - 10.0 for the UI
+        score = Math.Clamp(score, 0.0, 100.0) / 10.0;
 
-        // Switch expressions compile down efficiently
         return score switch
         {
-            >= 60.0 => new(telemetry.ProcessId, telemetry.ProcessName, score, "BACKGROUND_IDLE_WASTE", "Process is consuming idle resources without active workload. Recommend termination."),
-            >= 30.0 => new(telemetry.ProcessId, telemetry.ProcessName, score, "MODERATE_DRAIN", "Monitor closely for sustained background accumulation."),
-            _       => new(telemetry.ProcessId, telemetry.ProcessName, score, "OPTIMAL", "Process operating within normal behavioral parameters.")
+            >= 6.0 => new(telemetry.ProcessId, telemetry.ProcessName, score, "BACKGROUND_IDLE_WASTE", "Process is consuming idle resources without active workload. Recommend termination."),
+            >= 3.0 => new(telemetry.ProcessId, telemetry.ProcessName, score, "MODERATE_DRAIN", "Monitor closely for sustained background accumulation."),
+            _      => new(telemetry.ProcessId, telemetry.ProcessName, score, "OPTIMAL", "Process operating within normal behavioral parameters.")
         };
     }
 }
