@@ -1,90 +1,123 @@
-﻿using System.Text;
-using System.Windows;
+﻿using System.Windows;
+using System.IO;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using System.Windows.Threading;
+using DaemonGuard.Database;
+using DaemonGuard.UI.Services;
 
 namespace DaemonGuard.UI;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly IDashboardService _service;
+    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private bool _refreshing;
+
+    // App.xaml StartupUri uses this one. The database file is shared with the Collector/Engine.
+    public MainWindow() : this(CreateService()) { }
+
+    private static IDashboardService CreateService()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DaemonGuard");
+        Directory.CreateDirectory(dir);
+        return new DatabaseDashboardService(new DatabaseRepository(Path.Combine(dir, "daemonguard.db")));
+    }
+
+    public MainWindow(IDashboardService service)
     {
         InitializeComponent();
+        _service = service;
 
-        ProcessGrid.ItemsSource = new List<ProcessInfo>
+        _timer.Tick += async (_, _) => await RefreshAsync();
+        Loaded += async (_, _) => { await RefreshAsync(); _timer.Start(); };
+        Closed += (_, _) => _timer.Stop();
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
         {
-            new ProcessInfo { Pid = 4120, Name = "OldBrowserHelper.exe", Score = 8.5, Status = "Wasteful",
-                  Explanation = "4 GB RAM, 40 min inactive, no network, no disk activity.",
-                  Breakdown = "High memory: +3\nLong inactivity: +3\nVery low CPU: +2\nNo network: +1\nNo disk: +1" },
-            new ProcessInfo { Pid = 2210, Name = "blender.exe", Score = 4.0, Status = "Suspicious",
-                  Explanation = "High memory, but active disk writes detected.",
-                  Breakdown = "High memory: +3\nNo network: +1\nActive disk writes: +0" },
-            new ProcessInfo { Pid = 4, Name = "System", Score = 1.0, Status = "Healthy",
-                  Explanation = "Protected Windows system process.", IsProtected = true,
-                  Breakdown = "No network: +1" },
-        };
+            var data = await _service.GetProcessesAsync();
+            var selectedPid = (ProcessGrid.SelectedItem as ProcessInfo)?.Pid;
+
+            _refreshing = true;                       // keep the selection when the list reloads
+            ProcessGrid.ItemsSource = data;
+            var match = selectedPid is null ? null : data.FirstOrDefault(p => p.Pid == selectedPid);
+            ProcessGrid.SelectedItem = match;
+            _refreshing = false;
+
+            UpdateDetails(match);
+        }
+        catch (Exception ex)
+        {
+            _refreshing = false;
+            StatusText.Text = "Refresh failed: " + ex.Message;
+        }
     }
 
     private void ProcessGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-{
-    if (ProcessGrid.SelectedItem is ProcessInfo p)
     {
+        if (_refreshing) return;
+        UpdateDetails(ProcessGrid.SelectedItem as ProcessInfo);
+    }
+
+    private void UpdateDetails(ProcessInfo? p)
+    {
+        if (p is null)
+        {
+            ExplanationText.Text = "Select a process to see the explanation.";
+            BreakdownText.Text = "";
+            CloseButton.IsEnabled = true;
+            return;
+        }
+
         ExplanationText.Text = p.IsProtected
             ? p.Explanation + "\n\nProtected: this process cannot be closed."
             : p.Explanation;
-
-        CloseButton.IsEnabled = !p.IsProtected;
         BreakdownText.Text = p.Breakdown;
+        CloseButton.IsEnabled = !p.IsProtected;
     }
-}
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-{
-    if (ProcessGrid.SelectedItem is not ProcessInfo p)
+
+    private async void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("Please select a process first.");
-        return;
+        if (ProcessGrid.SelectedItem is not ProcessInfo p)
+        {
+            MessageBox.Show("Please select a process first.");
+            return;
+        }
+        if (p.IsProtected) return;   // safety: never close protected processes
+
+        var answer = MessageBox.Show(
+            $"Close {p.Name} (PID {p.Pid})?\n\n{p.Explanation}",
+            "Confirm action", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+        if (answer == MessageBoxResult.Yes)
+            await RunActionAsync(p, "Close");
     }
 
-    var answer = MessageBox.Show(
-        $"Close {p.Name} (PID {p.Pid})?\n\n{p.Explanation}",
-        "Confirm action",
-        MessageBoxButton.YesNo,
-        MessageBoxImage.Warning);
-
-    if (answer == MessageBoxResult.Yes)
-        MessageBox.Show($"{p.Name} would be closed (simulated).");
-}
-
-private void ActionButton_Click(object sender, RoutedEventArgs e)
-{
-    if (ProcessGrid.SelectedItem is not ProcessInfo p)
+    private async void ActionButton_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("Please select a process first.");
-        return;
+        if (ProcessGrid.SelectedItem is not ProcessInfo p)
+        {
+            MessageBox.Show("Please select a process first.");
+            return;
+        }
+        await RunActionAsync(p, ((Button)sender).Content.ToString()!);
     }
 
-    var action = ((Button)sender).Content;
-    MessageBox.Show($"{action} on {p.Name} (PID {p.Pid}) - simulated.");
-}
-
-}
-
-public class ProcessInfo
-{
-    public int Pid { get; set; }
-    public string Name { get; set; } = "";
-    public double Score { get; set; }
-    public string Status { get; set; } = "";
-    public string Explanation { get; set; } = "";
-    public bool IsProtected { get; set; }
-    public string Breakdown { get; set; } = "";
+    private async Task RunActionAsync(ProcessInfo p, string action)
+    {
+        // TODO: call the Engine's ExecuteProcessAction(pid, action) here when it exists.
+        const string result = "Simulated";
+        try
+        {
+            await _service.LogActionAsync(p, action, result);
+            StatusText.Text = $"{action} on {p.Name} (PID {p.Pid}): {result}";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"{action} logging failed: {ex.Message}";
+        }
+    }
 }
