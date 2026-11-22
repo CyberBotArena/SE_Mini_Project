@@ -308,7 +308,15 @@ public sealed class DatabaseRepository : IAsyncDisposable
         await using var conn = await OpenAsync();
         return await conn.QueryAsync<WasteScoreWithSample>(sql, new { Limit = limit });
     }
+        public async Task<IEnumerable<WasteScoreWithSample>> GetWasteScoreHistoryAsync(long processId, int limit = 120)
+    {
+        const string sql = WasteScoreWithSampleSelect +
+            " WHERE rs.process_id = @ProcessId ORDER BY rs.timestamp DESC LIMIT @Limit;";
 
+        await using var conn = await OpenAsync();
+        var rows = await conn.QueryAsync<WasteScoreWithSample>(sql, new { ProcessId = processId, Limit = limit });
+        return rows.OrderBy(r => r.SampleTimestamp).ToList();   // oldest first, for the graph
+    }
     #endregion
 
     #region User Action Operations
