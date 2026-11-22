@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "dgSpecHash": "l0D1g8rEQbw=",
+  "success": true,
+  "projectFilePath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.UI\\DaemonGuard.UI.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\USER\\.nuget\\packages\\dapper\\2.1.89\\dapper.2.1.89.nupkg.sha512",
+    "C:\\Users\\USER\\.nuget\\packages\\microsoft.data.sqlite\\11.0.0\\microsoft.data.sqlite.11.0.0.nupkg.sha512",
+    "C:\\Users\\USER\\.nuget\\packages\\microsoft.data.sqlite.core\\11.0.0\\microsoft.data.sqlite.core.11.0.0.nupkg.sha512",
+    "C:\\Users\\USER\\.nuget\\packages\\sqlite\\3.53.4\\sqlite.3.53.4.nupkg.sha512",
+    "C:\\Users\\USER\\.nuget\\packages\\sqlitepclraw.bundle_e_sqlite3\\3.0.5\\sqlitepclraw.bundle_e_sqlite3.3.0.5.nupkg.sha512",
+    "C:\\Users\\USER\\.nuget\\packages\\sqlitepclraw.config.e_sqlite3\\3.0.5\\sqlitepclraw.config.e_sqlite3.3.0.5.nupkg.sha512",
+    "C:\\Users\\USER\\.nuget\\packages\\sqlitepclraw.core\\3.0.5\\sqlitepclraw.core.3.0.5.nupkg.sha512",
+    "C:\\Users\\USER\\.nuget\\packages\\sqlitepclraw.provider.e_sqlite3\\3.0.5\\sqlitepclraw.provider.e_sqlite3.3.0.5.nupkg.sha512"
+  ],
+  "logs": []
+}

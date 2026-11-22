@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
+      "projectUniqueName": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
       "projectName": "DaemonGuard.Engine",
-      "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
+      "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
       "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\obj\\",
+      "outputPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"

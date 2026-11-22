@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj": {}
+    "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj": {}
   },
   "projects": {
-    "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj": {
+    "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj",
+        "projectUniqueName": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj",
         "projectName": "DaemonGuard.Collector",
-        "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj",
+        "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj",
         "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\obj\\",
+        "outputPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -79,14 +79,14 @@
         }
       }
     },
-    "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj": {
+    "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj",
+        "projectUniqueName": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj",
         "projectName": "DaemonGuard.Database",
-        "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj",
+        "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj",
         "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Database\\obj\\",
+        "outputPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -424,14 +424,14 @@
         }
       }
     },
-    "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj": {
+    "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
+        "projectUniqueName": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
         "projectName": "DaemonGuard.Engine.Host",
-        "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
+        "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
         "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine.Host\\obj\\",
+        "outputPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -447,14 +447,14 @@
             "framework": "net10.0-windows7.0",
             "targetAlias": "net10.0-windows",
             "projectReferences": {
-              "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj": {
-                "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj"
+              "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj": {
+                "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj"
               },
-              "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj": {
-                "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj"
+              "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj": {
+                "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj"
               },
-              "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj": {
-                "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj"
+              "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj": {
+                "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj"
               }
             }
           }
@@ -769,14 +769,14 @@
         }
       }
     },
-    "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj": {
+    "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
+        "projectUniqueName": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
         "projectName": "DaemonGuard.Engine",
-        "projectPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
+        "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
         "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\obj\\",
+        "outputPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"
