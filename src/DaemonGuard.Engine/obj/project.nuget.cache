@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "X52anl5eQg4=",
+  "dgSpecHash": "nbYYLI+HAOk=",
   "success": true,
-  "projectFilePath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
+  "projectFilePath": "C:\\Users\\USER\\OneDrive\\Desktop\\New folder\\New folder\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\USER\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.32\\microsoft.netcore.app.ref.8.0.32.nupkg.sha512",
     "C:\\Users\\USER\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.32\\microsoft.windowsdesktop.app.ref.8.0.32.nupkg.sha512",
