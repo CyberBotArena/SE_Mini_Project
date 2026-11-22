@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "DaemonGuard.Engine/1.0.0": {
+        "runtime": {
+          "DaemonGuard.Engine.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "DaemonGuard.Engine/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

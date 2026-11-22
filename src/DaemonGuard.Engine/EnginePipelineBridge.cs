@@ -3,21 +3,15 @@ using System.Threading.Channels;
 
 namespace DaemonGuard.Engine.Communication;
 
-/// <summary>
-/// Expanded telemetry packet capturing resource utilization, disk I/O velocity, 
-/// and UI/window state to accurately separate active workloads from background idle waste.
-/// </summary>
 public sealed record ProcessTelemetry(
     int ProcessId,
     string ProcessName,
     string ExecutablePath,
     float CpuUsage,
     long WorkingSetMemoryBytes,
-    // --- NEW BEHAVIORAL METRICS ---
     long DiskReadBytesPerSec,
     long DiskWriteBytesPerSec,
     bool HasVisibleWindow,
-    // ------------------------------
     DateTime Timestamp
 );
 
@@ -86,11 +80,42 @@ public sealed class EnginePipelineBridge : IEngineIngestor, IEngineFeedback, IDi
 
     public void UpdatePathWhitelist(IEnumerable<string> paths)
     {
-        _whitelistedPaths.Clear();
         foreach (var path in paths)
         {
-            if (!string.IsNullOrWhiteSpace(path)) _whitelistedPaths[path] = 0;
+            var normalized = NormalizePath(path);
+            if (normalized is not null) _whitelistedPaths[normalized] = 0;
         }
+    }
+
+    public bool IsPathWhitelisted(string? path) => path is not null && _whitelistedPaths.ContainsKey(path);
+
+    public bool RemoveWhitelistedPath(string path)
+    {
+        var normalized = NormalizePath(path);
+        return normalized is not null && _whitelistedPaths.TryRemove(normalized, out _);
+    }
+
+    public void ClearPathWhitelist() => _whitelistedPaths.Clear();
+
+    public bool IsWatched(int processId) => _activeWatchlistPids.ContainsKey(processId);
+
+    public static string? NormalizePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var p = path.Trim().Trim('"').Trim();
+        foreach (var c in p)
+            if (char.IsControl(c)) return null;
+        try
+        {
+            if (!Path.IsPathFullyQualified(p)) return null;
+            p = Path.GetFullPath(p);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+        p = p.TrimEnd('\\', '/');
+        return p.Length == 0 ? null : p;
     }
 
     public void CompleteWriting() => _telemetryChannel.Writer.TryComplete();

@@ -1,0 +1,11 @@
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\bin\Debug\net8.0\DaemonGuard.Engine.deps.json
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\bin\Debug\net8.0\DaemonGuard.Engine.dll
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\bin\Debug\net8.0\DaemonGuard.Engine.pdb
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.AssemblyInfoInputs.cache
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.AssemblyInfo.cs
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.csproj.CoreCompileInputs.cache
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.dll
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\refint\DaemonGuard.Engine.dll
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.pdb
+C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\ref\DaemonGuard.Engine.dll
