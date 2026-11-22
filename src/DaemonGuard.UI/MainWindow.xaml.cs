@@ -1,9 +1,12 @@
-﻿using System.Windows;
-using System.IO;
+﻿using System.IO;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using DaemonGuard.Database;
 using DaemonGuard.UI.Services;
+using OxyPlot;
+using OxyPlot.Axes;
+using OxyPlot.Series;
 
 namespace DaemonGuard.UI;
 
@@ -12,6 +15,8 @@ public partial class MainWindow : Window
     private readonly IDashboardService _service;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _refreshing;
+    private readonly PlotModel _trendModel = new() { TitleFontSize = 12 };
+    private readonly LineSeries _scoreSeries = new() { Color = OxyColors.SteelBlue, MarkerType = MarkerType.Circle, MarkerSize = 2.5 };
 
     // App.xaml StartupUri uses this one. The database file is shared with the Collector/Engine.
     public MainWindow() : this(CreateService()) { }
@@ -28,6 +33,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _service = service;
+
+        _trendModel.Axes.Add(new DateTimeAxis { Position = AxisPosition.Bottom, StringFormat = "HH:mm:ss" });
+        _trendModel.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Maximum = 10, Title = "Waste score" });
+        _trendModel.Series.Add(_scoreSeries);
+        TrendPlot.Model = _trendModel;
 
         _timer.Tick += async (_, _) => await RefreshAsync();
         Loaded += async (_, _) => { await RefreshAsync(); _timer.Start(); };
@@ -48,6 +58,7 @@ public partial class MainWindow : Window
             _refreshing = false;
 
             UpdateDetails(match);
+            await LoadTrendAsync(match);
         }
         catch (Exception ex)
         {
@@ -56,10 +67,28 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ProcessGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void ProcessGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_refreshing) return;
-        UpdateDetails(ProcessGrid.SelectedItem as ProcessInfo);
+        var p = ProcessGrid.SelectedItem as ProcessInfo;
+        UpdateDetails(p);
+        await LoadTrendAsync(p);
+    }
+
+    private async Task LoadTrendAsync(ProcessInfo? p)
+    {
+        _scoreSeries.Points.Clear();
+        _trendModel.Title = p is null ? "" : $"{p.Name} (PID {p.Pid})";
+        if (p is not null)
+        {
+            try
+            {
+                foreach (var t in await _service.GetHistoryAsync(p))
+                    _scoreSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(t.Time), t.Score));
+            }
+            catch (Exception ex) { StatusText.Text = "Trend failed: " + ex.Message; }
+        }
+        _trendModel.InvalidatePlot(true);
     }
 
     private void UpdateDetails(ProcessInfo? p)

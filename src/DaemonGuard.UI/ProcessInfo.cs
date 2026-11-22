@@ -3,6 +3,7 @@ namespace DaemonGuard.UI;
 public class ProcessInfo
 {
     public long? ScoreId { get; set; }
+    public long ProcessId { get; set; }        // database id, used for the trend graph
     public int Pid { get; set; }
     public string Name { get; set; } = "";
     public double Score { get; set; }

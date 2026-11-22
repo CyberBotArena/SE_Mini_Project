@@ -16,6 +16,7 @@ public sealed class DatabaseDashboardService : IDashboardService
             .Select(r => new ProcessInfo
             {
                 ScoreId = r.ScoreId,
+                ProcessId = r.ProcessId,
                 Pid = r.Pid,
                 Name = r.ProcessName,
                 Score = r.WasteScore,
@@ -26,6 +27,16 @@ public sealed class DatabaseDashboardService : IDashboardService
                 Breakdown = FormatBreakdown(r.BreakdownJson)
             })
             .OrderByDescending(p => p.Score).ToList();
+    }
+
+    public async Task<List<TrendPoint>> GetHistoryAsync(ProcessInfo p)
+    {
+        var rows = await _repo.GetWasteScoreHistoryAsync(p.ProcessId, 120);
+        return rows
+            .Select(r => new TrendPoint(
+                DateTime.SpecifyKind(r.SampleTimestamp, DateTimeKind.Utc).ToLocalTime(),
+                r.WasteScore))
+            .ToList();
     }
 
     public Task LogActionAsync(ProcessInfo p, string action, string result) =>
