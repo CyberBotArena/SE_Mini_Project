@@ -9,15 +9,3 @@ C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\
 C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\refint\DaemonGuard.Engine.dll
 C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.pdb
 C:\Users\USER\OneDrive\Desktop\New folder\New folder\src\DaemonGuard.Engine\obj\Debug\net8.0\ref\DaemonGuard.Engine.dll
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\bin\Debug\net8.0\DaemonGuard.Engine.deps.json
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\bin\Debug\net8.0\DaemonGuard.Engine.dll
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\bin\Debug\net8.0\DaemonGuard.Engine.pdb
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.GeneratedMSBuildEditorConfig.editorconfig
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.AssemblyInfoInputs.cache
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.AssemblyInfo.cs
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.csproj.CoreCompileInputs.cache
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.sourcelink.json
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.dll
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\refint\DaemonGuard.Engine.dll
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\DaemonGuard.Engine.pdb
-D:\Uni-courses\Sem 04\CO2307 - Software Engineering\Project\SE_Mini_Project\src\DaemonGuard.Engine\obj\Debug\net8.0\ref\DaemonGuard.Engine.dll

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DaemonGuard.Engine")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c6852178e6169f351e0d25e63146f52500f94611")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
 [assembly: System.Reflection.AssemblyProductAttribute("DaemonGuard.Engine")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DaemonGuard.Engine")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
