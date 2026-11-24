@@ -445,11 +445,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
+      "projectUniqueName": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
       "projectName": "DaemonGuard.Engine.Host",
-      "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
+      "projectPath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
       "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-      "outputPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\obj\\",
+      "outputPath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine.Host\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -465,14 +465,14 @@
           "framework": "net10.0-windows7.0",
           "targetAlias": "net10.0-windows",
           "projectReferences": {
-            "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj": {
-              "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj"
+            "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj": {
+              "projectPath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Collector\\DaemonGuard.Collector\\DaemonGuard.Collector.csproj"
             },
-            "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj": {
-              "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj"
+            "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj": {
+              "projectPath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Database\\DaemonGuard.Database.csproj"
             },
-            "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj": {
-              "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj"
+            "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj": {
+              "projectPath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj"
             }
           }
         }
@@ -509,7 +509,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.402/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.403/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",

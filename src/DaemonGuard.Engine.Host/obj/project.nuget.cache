@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "jE5bKqg9/OI=",
+  "dgSpecHash": "B//mJbY5Dig=",
   "success": true,
-  "projectFilePath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
+  "projectFilePath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine.Host\\DaemonGuard.Engine.Host.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\USER\\.nuget\\packages\\dapper\\2.1.89\\dapper.2.1.89.nupkg.sha512",
     "C:\\Users\\USER\\.nuget\\packages\\microsoft.data.sqlite\\11.0.0\\microsoft.data.sqlite.11.0.0.nupkg.sha512",

@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
+      "projectUniqueName": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
       "projectName": "DaemonGuard.Engine",
-      "projectPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
+      "projectPath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine\\DaemonGuard.Engine.csproj",
       "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-      "outputPath": "D:\\Uni-courses\\Sem 04\\CO2307 - Software Engineering\\Project\\SE_Mini_Project\\src\\DaemonGuard.Engine\\obj\\",
+      "outputPath": "c:\\Users\\USER\\Desktop\\SE_Mini_Project-main (1)\\repo-fresh\\src\\DaemonGuard.Engine\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -65,15 +65,15 @@
         "downloadDependencies": [
           {
             "name": "Microsoft.AspNetCore.App.Ref",
-            "version": "[8.0.32, 8.0.32]"
+            "version": "[8.0.33, 8.0.33]"
           },
           {
             "name": "Microsoft.NETCore.App.Ref",
-            "version": "[8.0.32, 8.0.32]"
+            "version": "[8.0.33, 8.0.33]"
           },
           {
             "name": "Microsoft.WindowsDesktop.App.Ref",
-            "version": "[8.0.32, 8.0.32]"
+            "version": "[8.0.33, 8.0.33]"
           }
         ],
         "frameworkReferences": {
@@ -81,7 +81,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.402/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.403/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
